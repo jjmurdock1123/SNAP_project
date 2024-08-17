@@ -49,5 +49,5 @@ po/*~
 rsconnect/
 
 # ignore
-"data/soc-redditHyperlinks-body.tsv"
-"data/soc-redditHyperlinks-title.tsv"
+data/soc-redditHyperlinks-body.tsv
+data/soc-redditHyperlinks-title.tsv
