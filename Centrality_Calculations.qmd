@@ -1,0 +1,96 @@
+---
+title: "Centrality Calculations"
+format: html
+---
+
+## Load Necessary Libraries
+```{r}
+library(igraph)
+library(dplyr)
+library(Matrix)
+library(kableExtra)
+```
+
+```{r}
+# Source the data filtering script to get the filtered reddit_network
+source("~/SNA Summer 2024/Final Project/Data_Filtering.R")  
+```
+
+
+```{r}
+# Convert the filtered reddit_network to an igraph object
+reddit_graph <- graph_from_data_frame(reddit_network, directed = FALSE)
+```
+
+```{r}
+centralities_reddit <- data.frame(
+  node_name = V(reddit_graph)$name,
+  degree = degree(reddit_graph, mode = 'all')
+)
+```
+
+```{r}
+View(centralities_reddit)  # Opens the centralities data frame in a viewer
+head(centralities_reddit)  # Prints the first few rows to the console
+```
+
+### DEGREE
+```{r}
+centralities_reddit |> 
+  dplyr::slice_max(order_by = degree, n = 5) |> 
+  kableExtra::kable()
+```
+
+#### BETWEENNESS
+```{r}
+#| label: betweenness
+# Calculate betweenness centrality and store it in the data.frame called 'centralities'
+centralities_reddit$betweenness <- betweenness(reddit_graph)
+
+centralities_reddit |> 
+  dplyr::slice_max(order_by = betweenness, n = 5) |> 
+  kableExtra::kable()
+```
+
+### CLOSENESS
+```{r}
+#| label: closeness
+centralities_reddit$closeness <- closeness(reddit_graph, mode = 'all')
+
+centralities_reddit |> 
+  dplyr::slice_max(order_by = closeness, n = 5) |> 
+  dplyr::select(-degree, -betweenness) |> 
+  kableExtra::kable()
+```
+
+```{r}
+print(centralities_reddit)
+```
+```{r}
+library(ggraph)
+library(ggrepel)
+
+# Select the top 20 subreddits by betweenness centrality
+top_subreddits <- centralities_reddit |> 
+  dplyr::slice_max(order_by = betweenness, n = 20)
+
+# Create a filtered igraph object with only the top subreddits
+top_reddit_graph <- induced_subgraph(reddit_graph, V(reddit_graph)$name %in% top_subreddits$node_name)
+
+# Generate layout positions for the nodes using a simple layout
+layout <- layout_nicely(top_reddit_graph)
+
+# Check the layout dimensions
+print(layout)
+
+# Visualization of the network highlighting betweenness
+ggraph(top_reddit_graph, layout = layout) + 
+  geom_edge_link(color = "gray70", alpha = 0.5) +  # lighter and transparent edges
+  geom_node_point(aes(size = betweenness(top_reddit_graph)), color = "blue") +
+  geom_text_repel(aes(x = layout[,1], y = layout[,2], label = name), 
+                 size = 3, color = "black") +  # using ggrepel to label the nodes
+  scale_size_continuous(range = c(4, 10)) +  # adjust the range of node sizes
+  theme_minimal() +
+  ggtitle("Top 20 Subreddits by Betweenness Centrality")
+
+```
