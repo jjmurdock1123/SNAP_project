@@ -46,6 +46,7 @@ reddit_network <- reddit_network |>
   mutate(TIMESTAMP = as_date(TIMESTAMP))
 
 reddit_network <- reddit_network |>
-  filter(TIMESTAMP >= "2015-11-08" & TIMESTAMP <= "2016-11-08")
+  filter(TIMESTAMP >= "2015-11-08" & TIMESTAMP <= "2016-11-08") |>
+  janitor::clean_names()
 
 save(reddit_network, file = here("data/reddit_network.rda"))
