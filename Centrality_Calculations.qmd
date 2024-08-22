@@ -9,29 +9,32 @@ library(igraph)
 library(dplyr)
 library(Matrix)
 library(kableExtra)
+library(here)
+```
+# load data
+```{r}
+load(here("data/reddit_network.rda"))
 ```
 
-```{r}
-# Source the data filtering script to get the filtered reddit_network
-source("~/SNA Summer 2024/Final Project/Data_Filtering.R")  
-```
 
 
 ```{r}
 # Convert the filtered reddit_network to an igraph object
-reddit_graph <- graph_from_data_frame(reddit_network, directed = FALSE)
+reddit_graph <- graph_from_data_frame(reddit_network, directed = TRUE)
+is_directed(reddit_graph)
+E(reddit_graph)
 ```
 
 ```{r}
 centralities_reddit <- data.frame(
   node_name = V(reddit_graph)$name,
   degree = degree(reddit_graph, mode = 'all')
-)
+) # could also look at in or out
 ```
 
 ```{r}
 View(centralities_reddit)  # Opens the centralities data frame in a viewer
-head(centralities_reddit)  # Prints the first few rows to the console
+head(centralities_reddit, n = 5)  # Prints the first few rows to the console
 ```
 
 ### DEGREE
@@ -45,7 +48,7 @@ centralities_reddit |>
 ```{r}
 #| label: betweenness
 # Calculate betweenness centrality and store it in the data.frame called 'centralities'
-centralities_reddit$betweenness <- betweenness(reddit_graph)
+centralities_reddit$betweenness <- betweenness(reddit_graph, directed = TRUE)
 
 centralities_reddit |> 
   dplyr::slice_max(order_by = betweenness, n = 5) |> 
@@ -85,12 +88,145 @@ print(layout)
 
 # Visualization of the network highlighting betweenness
 ggraph(top_reddit_graph, layout = layout) + 
-  geom_edge_link(color = "gray70", alpha = 0.5) +  # lighter and transparent edges
+  geom_edge_link(color = "gray70", alpha = 0.5, arrow = arrow(length = unit(0.15, "inches"))) +  # lighter and transparent edges
   geom_node_point(aes(size = betweenness(top_reddit_graph)), color = "blue") +
   geom_text_repel(aes(x = layout[,1], y = layout[,2], label = name), 
                  size = 3, color = "black") +  # using ggrepel to label the nodes
   scale_size_continuous(range = c(4, 10)) +  # adjust the range of node sizes
   theme_minimal() +
+  theme(axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.line = element_blank()) +
   ggtitle("Top 20 Subreddits by Betweenness Centrality")
 
 ```
+## Eigenvector Centrality
+```{r}
+#| label: eigenvector
+centralities_reddit$eigen <-
+  eigen_centrality(reddit_graph)$vector
+
+centralities_reddit |> 
+  dplyr::slice_max(order_by = eigen, n = 5) 
+```
+
+
+## Components
+```{r}
+reddit_comp <- components(reddit_graph)
+#reddit_comp
+```
+```{r}
+giantreddit_graph <- reddit_graph %>% 
+  induced_subgraph(., which(reddit_comp$membership == which.max(reddit_comp$csize)))
+
+```
+
+## K-Cores
+```{r}
+kcore_reddit <-
+  giantreddit_graph %>% graph.coreness(.)
+#kcore_reddit
+
+```
+
+
+## Clusters
+```{r}
+cluster_reddit <- giantreddit_graph %>% cluster_walktrap()
+cluster_reddit
+```
+```{r}
+# Find the number of clusters
+membership_vector <- membership(cluster_reddit)
+# affiliation list
+
+length(cluster_reddit) # number of clusters
+
+# Find the size of each cluster
+# Note that communities with one node are isolates, or have only a single tie
+size_vector <- sizes(cluster_reddit)
+size_vector
+size_df <- data.frame( # Cluster IDs ,
+ size = size_vector) |>
+  arrange(desc(size.Freq))
+size_df
+
+
+```
+
+## Temporal centrality
+
+```{r}
+
+library(tnet)
+# Create a temporal network object
+intervals <- seq(min(reddit_network$timestamp), max(reddit_network$timestamp), length.out = 4)
+reddit_network$time_slice <- cut(reddit_network$timestamp, breaks = intervals, include.lowest = TRUE)
+
+# Split the data into a list of data frames for each time slice
+time_slices <- split(reddit_network, reddit_network$time_slice)
+
+# Inspect the split data
+lapply(time_slices, head)
+
+time_slices_list <- lapply(time_slices, function(df) {
+  df[, c("source_subreddit", "target_subreddit", "post_id", "timestamp", "link_sentiment", "properties")]
+})
+
+
+# Assuming `time_slices_list` contains the data frames for each time slice
+
+# Initialize empty lists to store centrality measures
+degree_centralities <- list()
+betweenness_centralities <- list()
+closeness_centralities <- list()
+
+# Iterate over each graph and compute centrality measures
+for (i in seq_along(time_slices_list)) {
+  df <- time_slices_list[[i]]
+  g <- graph_from_data_frame(df, directed = TRUE)
+  
+  # Compute centralities
+  degree_centrality <- degree(g)
+  betweenness_centrality <- betweenness(g)
+  closeness_centrality <- closeness(g)
+  
+  # Store centralities in lists with an identifier for the time slice
+  degree_centralities[[i]] <- data.frame(
+    node = names(degree_centrality),
+    degree = degree_centrality,
+    time_slice = paste("Period", i)
+  )
+  
+  betweenness_centralities[[i]] <- data.frame(
+    node = names(betweenness_centrality),
+    betweenness = betweenness_centrality,
+    time_slice = paste("Period", i)
+  )
+  
+  closeness_centralities[[i]] <- data.frame(
+    node = names(closeness_centrality),
+    closeness = closeness_centrality,
+    time_slice = paste("Period", i)
+  )
+}
+
+# Combine the lists into data frames
+degree_df <- bind_rows(degree_centralities)
+betweenness_df <- bind_rows(betweenness_centralities)
+closeness_df <- bind_rows(closeness_centralities)
+
+# Merge the centrality data frames on node and time_slice
+centrality_df <- degree_df %>%
+  full_join(betweenness_df, by = c("node", "time_slice")) %>%
+  full_join(closeness_df, by = c("node", "time_slice")) |>
+
+
+# Print the final data frame
+print(centrality_df)
+
+# analysis across the three times to follow
+```
+
+
