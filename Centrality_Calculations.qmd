@@ -181,6 +181,7 @@ time_slices_list <- lapply(time_slices, function(df) {
 degree_centralities <- list()
 betweenness_centralities <- list()
 closeness_centralities <- list()
+eigen_centralities <- list()
 
 # Iterate over each graph and compute centrality measures
 for (i in seq_along(time_slices_list)) {
@@ -210,6 +211,8 @@ for (i in seq_along(time_slices_list)) {
     closeness = closeness_centrality,
     time_slice = paste("Period", i)
   )
+  
+ 
 }
 
 # Combine the lists into data frames
@@ -217,16 +220,64 @@ degree_df <- bind_rows(degree_centralities)
 betweenness_df <- bind_rows(betweenness_centralities)
 closeness_df <- bind_rows(closeness_centralities)
 
+
 # Merge the centrality data frames on node and time_slice
 centrality_df <- degree_df %>%
   full_join(betweenness_df, by = c("node", "time_slice")) %>%
-  full_join(closeness_df, by = c("node", "time_slice")) |>
-
+  full_join(closeness_df, by = c("node", "time_slice"))
 
 # Print the final data frame
 print(centrality_df)
 
 # analysis across the three times to follow
+# degree
+centrality_df |> 
+  filter(time_slice == "Period 1") |>
+  slice_max(order_by = degree, n = 5) |> 
+  kableExtra::kable()
+
+centrality_df |> 
+  filter(time_slice == "Period 2") |>
+  slice_max(order_by = degree, n = 5) |> 
+  kableExtra::kable()
+
+centrality_df |> 
+  filter(time_slice == "Period 3") |>
+  slice_max(order_by = degree, n = 5) |> 
+  kableExtra::kable()
+
+centrality_df |> 
+  filter(time_slice == "Period 1") |>
+  slice_max(order_by = betweenness, n = 5) |> 
+  kableExtra::kable()
+
+# betweenness
+centrality_df |> 
+  filter(time_slice == "Period 2") |>
+  slice_max(order_by = betweenness, n = 5) |> 
+  kableExtra::kable()
+
+centrality_df |> 
+  filter(time_slice == "Period 3") |>
+  slice_max(order_by = betweenness, n = 5) |> 
+  kableExtra::kable()
+
+centrality_df |> 
+  filter(time_slice == "Period 1") |>
+  slice_max(order_by = closeness, n = 5) |> 
+  kableExtra::kable()
+
+centrality_df |> 
+  filter(time_slice == "Period 2") |>
+  slice_max(order_by = closeness, n = 5) |> 
+  kableExtra::kable()
+
+centrality_df |> 
+  filter(time_slice == "Period 3") |>
+  slice_max(order_by = closeness, n = 5) |> 
+  kableExtra::kable()
+
+
 ```
 
 
