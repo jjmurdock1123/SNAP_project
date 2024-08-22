@@ -114,7 +114,8 @@ centralities_reddit |>
 ## Components
 ```{r}
 reddit_comp <- components(reddit_graph)
-#reddit_comp
+reddit_comp$csize
+reddit_comp$no
 ```
 ```{r}
 giantreddit_graph <- reddit_graph %>% 
