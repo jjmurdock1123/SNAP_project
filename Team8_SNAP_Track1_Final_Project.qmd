@@ -1,3 +1,43 @@
+---
+title: "Team8_SNAP_Track1_Final_Project"
+author: "Team 8"
+date: today
+execute:
+  echo: false
+format: 
+  pdf:
+      output-file: "Team8_SNAP_Track1_Final_Project"
+      output-ext: "pdf"
+      toc: true
+      toc-depth: 4
+      shift-heading-level-by: 2
+      fig-pos: "H"
+      fig-cap-location: top
+      geometry:
+        - top=1in
+        - right=.8in
+        - bottom=1in
+        - left=.8in
+      link-citations: true
+      linkcolor: blue
+      include-in-header: 
+        text: |
+          \usepackage{fancyhdr}
+          \usepackage{titling}
+          \pagestyle{fancy}
+          \fancyhf{}
+          \renewcommand\maketitle{
+            \fancyhead[C]{
+              \thetitle
+              \ifx \theauthor\empty  \else \ – \theauthor \fi
+              \ifx \thedate\empty  \else \ – \thedate \ \fi
+            }
+          }
+          \fancyfoot[C]{\thepage}
+---
+
+```{r}
+# Prepping and filtering out the data
 rm(list=ls())
 
 ######################################################################################
@@ -68,7 +108,7 @@ important_subreddits <- c("politics", "elections", "sandersforpresident",
 # this is so that we can fit an REM model over a sample of nodes
 # we need lots of computing power to fit a model over many nodes hence the need 
 # to cut down even more
-other_important_subreddits <- c("politics", "elections", 
+some_more_important_subreddits <- c("politics", "elections", 
                                     "sandersforpresident", "republican", 
                                     "foreignpolicyanalysis", 
                                     "economics", "economy")
@@ -88,44 +128,68 @@ filtered_network <- reddit_network_2 %>%
     source_subreddit %in% important_subreddits |
       target_subreddit %in% important_subreddits
   )
-
+filtered_network_2 <- reddit_network_2 %>%
+  filter(
+    source_subreddit %in% some_more_important_subreddits |
+      target_subreddit %in% some_more_important_subreddits
+  )
 
 #####  save data according to extra filtering  #####
 save(filtered_network, file = here("data/filtered_reddit_network.rda"))
+save(filtered_network_2, file = here("data/filtered_network_2.rda"))
+```
 
+# Part1: Centrality measures
 
-# PART1: CENTRALITIES  
+We will perform a handful of centrality analyses to help us answer the following questions:
+Q1: What are the most central essential subreddits (betweenness)? 
+Q2: What are the most well connected subreddits (closeness)? 
+
+We will also look at temporal centrality, degree centrality and eigenvector centrality to give us a big picture of the dataset
+
+```{r}
 # Load Necessary Libraries
 library(igraph)
 library(dplyr)
 library(Matrix)
 library(kableExtra)
 library(here)
+```
 
-
+```{r}
 # load data
 load(here("data/reddit_network.rda"))
+```
 
 
+```{r}
 # Convert the filtered reddit_network to an igraph object
 reddit_graph <- graph_from_data_frame(reddit_network, directed = TRUE)
 is_directed(reddit_graph)
 E(reddit_graph)
+```
 
+```{r}
 centralities_reddit <- data.frame(
   node_name = V(reddit_graph)$name,
   degree = degree(reddit_graph, mode = 'all')
 ) # could also look at in or out
+```
 
+```{r}
 View(centralities_reddit)  # Opens the centralities data frame in a viewer
 head(centralities_reddit, n = 5)  # Prints the first few rows to the console
+```
 
-# Degree Centrality
+## Degree
+```{r}
 centralities_reddit |> 
   dplyr::slice_max(order_by = degree, n = 5) |> 
   kableExtra::kable()
+```
 
-# Betweeness Centrality
+## Betweeness
+```{r}
 #| label: betweenness
 # Calculate betweenness centrality and store it in the data.frame called 'centralities'
 centralities_reddit$betweenness <- betweenness(reddit_graph, directed = TRUE)
@@ -133,17 +197,21 @@ centralities_reddit$betweenness <- betweenness(reddit_graph, directed = TRUE)
 centralities_reddit |> 
   dplyr::slice_max(order_by = betweenness, n = 5) |> 
   kableExtra::kable()
+```
 
-# Closeness Centrality
+## Closeness
+```{r}
 #| label: closeness
 centralities_reddit$closeness <- closeness(reddit_graph, mode = 'all')
 
 centralities_reddit |> 
   dplyr::slice_max(order_by = closeness, n = 5) |> 
+  dplyr::slice_head(n = 5) |>
   dplyr::select(-degree, -betweenness) |> 
   kableExtra::kable()
+```
 
-
+```{r}
 library(ggraph)
 library(ggrepel)
 
@@ -165,7 +233,7 @@ ggraph(top_reddit_graph, layout = layout) +
   geom_edge_link(color = "gray70", alpha = 0.5, arrow = arrow(length = unit(0.15, "inches"))) +  # lighter and transparent edges
   geom_node_point(aes(size = betweenness(top_reddit_graph)), color = "blue") +
   geom_text_repel(aes(x = layout[,1], y = layout[,2], label = name), 
-                  size = 3, color = "black") +  # using ggrepel to label the nodes
+                 size = 3, color = "black") +  # using ggrepel to label the nodes
   scale_size_continuous(range = c(4, 10)) +  # adjust the range of node sizes
   theme_minimal() +
   theme(axis.text = element_blank(),
@@ -173,32 +241,45 @@ ggraph(top_reddit_graph, layout = layout) +
         axis.line = element_blank()) +
   ggtitle("Top 20 Subreddits by Betweenness Centrality")
 
-# Eigenvector Centrality
-
+```
+## Eigenvector Centrality
+```{r}
 #| label: eigenvector
 centralities_reddit$eigen <-
   eigen_centrality(reddit_graph)$vector
 
 centralities_reddit |> 
   dplyr::slice_max(order_by = eigen, n = 5) 
+```
 
-# Components
+
+## Components
+```{r}
 reddit_comp <- components(reddit_graph)
 reddit_comp$csize
 reddit_comp$no
-
-# find the largest component
+```
+```{r}
 giantreddit_graph <- reddit_graph %>% 
   induced_subgraph(., which(reddit_comp$membership == which.max(reddit_comp$csize)))
 
-# K-Cores
+```
+
+## K-Cores
+```{r}
 kcore_reddit <-
   giantreddit_graph %>% graph.coreness(.)
+#kcore_reddit
 
-# Clusters
+```
+
+
+## Clusters
+```{r}
 cluster_reddit <- giantreddit_graph %>% cluster_walktrap()
 cluster_reddit
-
+```
+```{r}
 # Find the number of clusters
 membership_vector <- membership(cluster_reddit)
 # affiliation list
@@ -210,11 +291,16 @@ length(cluster_reddit) # number of clusters
 size_vector <- sizes(cluster_reddit)
 size_vector
 size_df <- data.frame( # Cluster IDs ,
-  size = size_vector) |>
+ size = size_vector) |>
   arrange(desc(size.Freq))
 size_df
 
+
+```
+
 ## Temporal centrality
+
+```{r}
 
 library(tnet)
 # Create a temporal network object
@@ -231,8 +317,6 @@ time_slices_list <- lapply(time_slices, function(df) {
   df[, c("source_subreddit", "target_subreddit", "post_id", "timestamp", "link_sentiment", "properties")]
 })
 
-
-# Assuming `time_slices_list` contains the data frames for each time slice
 
 # Initialize empty lists to store centrality measures
 degree_centralities <- list()
@@ -269,7 +353,7 @@ for (i in seq_along(time_slices_list)) {
     time_slice = paste("Period", i)
   )
   
-  
+ 
 }
 
 # Combine the lists into data frames
@@ -334,22 +418,49 @@ centrality_df |>
   slice_max(order_by = closeness, n = 5) |> 
   kableExtra::kable()
 
-## PART2: REM Analysis
 
+```
+
+# Part2: REM Analysis
+
+Since we have a very big dataset, we aim on running one model that can help us evaluate 2 hypotheses. A big factor that drove us to take this direction is that given such a big dataset, we do not have enough computing power to fit an REM model over such a big dataset. We wanted to strike a balance between the number of factors we wanted to analyze including reciprocity, repetition and  preferential attachment as well as the number of subreddits we actually analyze. We still need a sizable chunk to look at without sacrificing robustness. With this in mind, we chose to look at interactions during the period of the national conventions as it is a time when:
+a. There is a clear political candidate from all political parties involved
+b. Everyone is tuning in to listen to political candidates and other political figures speak during these conventions so there are bound to be discussions on what they said
+
+The questions we aim to answer will be answered using hypotheses that we formulated. We followed the examples from our lab as they were well formed and most related to the dataset we have. Below are the hypotheses we aim to answer:
+
+### 1. The likelihood of a subreddit, a, to interact with another subreddit, b, is greater when subreddit a has a similar general sentiment as subreddit b.
+During election years, candidates can utilize the results of this question to find out how widely shared certain topics are based on their sentiments. If there are more links from one subreddit to another with a negative sentiment, the candidate could identify frustrations in the target population to address with their campaign.
+
+### 2. The likelihood of a subreddit, a, receiving an additional connection to another subreddit, b, is greater the more connections that subreddit a already has.
+This is helpful in order for campaign analysts not to cast such a wide net. If they can find influential subreddits which are in turn connected to other smaller subreddits, then the target subreddit is to some extent guaranteed to be a great source of widely talked about information. This will be particularly helpful during campaign analysis when a candidate is looking to talk about issues that affect the public
+
+
+```{r}
 # Load the necessary libraries
 library(igraph)
 library(dplyr)
 library(Matrix)
 library(kableExtra)
 library(here)
+```
 
+```{r}
 # load data
 load(here("data/filtered_reddit_network.rda"))
+```
 
+```{r}
 #| label: libraries
 #| echo: false
 #| output: false
 #| message: false
+
+# Lab 4b
+# Relational Event Models (REM)
+
+# Start with a clear environment
+# rm(list=ls())
 
 # Load necessary packages
 if (!"relevent" %in% installed.packages()) install.packages("relevent") ## for the install_version function
@@ -363,7 +474,9 @@ library(dplyr)
 
 list.files() # List the files in the current working directory to see if you're in the right directory
 # you should see all of the assignment data files listed here
+```
 
+```{r}
 # extract unique subreddits from source and target
 unique_subreddits <- sort(unique(c(filtered_network$source_subreddit, filtered_network$target_subreddit)))
 
@@ -395,7 +508,13 @@ data_rem <- data |>
   dplyr::select(time, sid, rid, link_sentiment) |> 
   dplyr::arrange(-time) |> 
   dplyr::mutate(time = dplyr::row_number() - 1)
+```
 
+### Plot interactions between political affiliated groups and factions during the 10 day convention period
+
+We want to see how some of these groups interacted with each other, the general sentiment of their interactions. Once again, due to the size of the data set we had to filter out specific subreddits to put into our visualization. This can be used as a template by our client to plot more specifically themed relationships. We can also incorporate sentiments between edges to see what the general sentiment during the national convention period.
+
+```{r}
 # Create the graph from the edge list
 g <- graph_from_data_frame(data_rem, directed = TRUE)
 
@@ -415,7 +534,13 @@ plot(
   main = "Communication Events Network",
   xlab = "Edges colored by sentiment"
 )
+```
+We see that the general sentiment between subreddits is positive. This is a surprising find as we had initially assumed that there would be more negative sentiment in posts between these politically affiliated subreddits as they center around opposing presidential candidates and candidates that ran for presidential primaries like Bernie Sanders.
 
+
+We will have the model analyse 4 different factors for the sake of completeness and to help us have context when singling out the estimates which will answer our question. There may be a case where a simple model that only analyses the factors we need (total degree received and covariance) may produce different results compared to when we look at additional factors like repetition and reciprocity. The main reason we chose to run one complex model as opposed to 2 models, a simple and a complex model is because of the sheer amount of computing power we need to run just one model.
+
+```{r}
 # this is so that we can fit an REM model over a sample of nodes
 # we need lots of computing power to fit a model over many nodes hence the need 
 # to cut down even more
@@ -464,8 +589,10 @@ data_rem_2 <- data_2 |>
   dplyr::arrange(-time) |> 
   dplyr::mutate(time = dplyr::row_number() - 1)
 
+```
 
-# Let's see what the data looks like in a network graph
+Let's see what the data looks like in a network graph
+```{r}
 #| label: REMgraph
 
 # create a graph from the edge list
@@ -481,9 +608,9 @@ plot(
   main = "Communication Events Network",
   xlab = "Nodes Colored by Subreddit"
 )
-
-# Fit the model over our data
-
+```
+Fit the model over our data
+```{r}
 #| label: REM model 
 set.seed(42)
 
@@ -497,8 +624,10 @@ REMmodel <- rem.dyad(
   covar = list(
     CovSnd = cbind(stats_intercept),
     CovInt = cbind(link_sentiment_factor)
-  ),  
+    ),  
   ordinal = FALSE, 
   hessian = T)
 
+# please note that CovSnd.1 is the model intercept
 summary(REMmodel)
+```

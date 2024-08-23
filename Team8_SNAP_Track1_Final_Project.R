@@ -69,9 +69,9 @@ important_subreddits <- c("politics", "elections", "sandersforpresident",
 # we need lots of computing power to fit a model over many nodes hence the need 
 # to cut down even more
 other_important_subreddits <- c("politics", "elections", 
-                                    "sandersforpresident", "republican", 
-                                    "foreignpolicyanalysis", 
-                                    "economics", "economy")
+                                "sandersforpresident", "republican", 
+                                "foreignpolicyanalysis", 
+                                "economics", "economy")
 
 # convert strings of subreddits to lowercase for more accurate matching
 important_subreddits <- tolower(important_subreddits)
@@ -502,3 +502,6 @@ REMmodel <- rem.dyad(
   hessian = T)
 
 summary(REMmodel)
+
+#| label: save env
+save.image(file = "Team8_SNAP_Track1_Final_Project.RData")
